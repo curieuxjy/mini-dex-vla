@@ -1,3 +1,5 @@
+"""A simple tokenizer for text instructions"""
+
 class SimpleTokenizer:
     def __init__(self, vocab=None):
         # vocab: dict token -> id

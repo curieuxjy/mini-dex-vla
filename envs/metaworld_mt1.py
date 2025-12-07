@@ -1,4 +1,4 @@
-# Metaworld/MT1
+"""Experimental script to visualize Meta-World MT1 environments with expert policies"""
 
 import gymnasium as gym
 import metaworld

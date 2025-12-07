@@ -1,3 +1,5 @@
+"""VLA Diffusion Policy Model."""
+
 import torch.nn as nn
 from .encoders import ImageEncoderTinyCNN, TextEncoderTinyGRU, StateEncoderMLP
 from .fusion import FusionMLP

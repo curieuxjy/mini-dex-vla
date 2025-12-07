@@ -1,3 +1,5 @@
+"""Diffusion policy head for action generation."""
+
 import math
 from dataclasses import dataclass
 import torch

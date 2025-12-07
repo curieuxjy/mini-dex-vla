@@ -10,12 +10,16 @@ mini-VLA is a minimal, beginner-friendly Vision-Language-Action (VLA) model desi
   <img src="./assets/corner2_push.gif" alt="push the object to the goal">
 </div>
 
-This project intentionally keeps the codebase very small (≈150–200 LOC for the core model) so that,
-- beginners can understand the complete pipeline
-- researchers can rapidly prototype new ideas
-- students can learn diffusion-based action generation without heavy dependencies
+This project intentionally keeps the codebase small (≈150–200 LOC for the core model) so that,
+- beginners can understand the complete VLA training and exec pipeline
+- researchers can rapidly prototype new ideas around this
+- students can learn diffusion-based action generation w/o heavy dependencies
 
-This project is not meant to be state-of-the-art — instead, it provides a clear, hackable template for understanding VLA design.
+This project is not meant to be state-of-the-art instead, it provides a clear, hackable template for understanding VLA design.
+
+The mini-VLA model core is mainly four files: [models/encoders.py](models/encoders.py) contains encoders for images, text and states corresponding to the robot, [models/fusion.py](models/fusion.py) simply combines vision-language-action embeddings using an MLP (yeah, not ideal but simple and it works OKAY), [models/diffusion_head.py](models/diffusion_head.py) generates action using diffusion policy, and [models/vla_diffusion_policy.py](models/vla_diffusion_policy.py) combines everything!
+
+Additionally, I provide scripts such as [scripts/collect_data.py](scripts/collect_data.py) to collect data using an expert policy, [scripts/train.py](scripts/train.py) to train the VLA on the collected data, and [scripts/test.py](scripts/test.py) to test VLA-Diffusion Policy's performance (+ save videos).
 
 ## Collect demonstration data
 

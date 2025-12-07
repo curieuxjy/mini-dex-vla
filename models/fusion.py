@@ -1,3 +1,5 @@
+"""Fusion module to combine image, text, and state tokens."""
+
 import torch
 import torch.nn as nn
 
