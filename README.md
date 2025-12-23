@@ -162,9 +162,48 @@ python -c "import dexmachina; print('DexMachina imported successfully!')"
 
 ---
 
+## 데이터 수집
+
+ARCTIC demonstration을 사용하여 mini-VLA 학습 데이터 수집:
+
+```bash
+python -m scripts.collect_dexmachina_data \
+    --task-name box \
+    --clip-range 30-230 \
+    --episodes 10 \
+    --output-path data/dexmachina_box.npz
+```
+
+### 옵션
+
+| 옵션 | 기본값 | 설명 |
+|------|--------|------|
+| `--task-name` | box | ARCTIC 물체 (box, mixer, waffleiron) |
+| `--hand-type` | allegro_hand | 로봇 손 타입 |
+| `--clip-range` | 30-230 | 프레임 범위 |
+| `--episodes` | 10 | 에피소드 수 |
+| `--render` | False | 이미지 렌더링 활성화 |
+| `--instruction` | auto | 태스크 instruction |
+
+### 출력 데이터 형식
+
+```python
+# dexmachina_box.npz
+{
+    "images": (N, 160, 160, 3),  # RGB uint8
+    "states": (N, 410),          # float32
+    "actions": (N, 44),          # float32
+    "text_ids": (N, T),          # int64
+    "vocab": dict,
+    "metadata": dict,
+}
+```
+
+---
+
 ## RL 학습 테스트
 
-설치 후 다음 명령어로 RL 학습을 테스트할 수 있습니다:
+DexMachina RL 학습 테스트:
 
 ```bash
 cd ~/Documents/dexmachina
@@ -242,6 +281,6 @@ python dexmachina/rl/eval_rl_games.py -B 1 --checkpoint $CK -v
 
 - [x] Genesis scene.build() 이슈 해결
 - [x] DexMachina 환경 래퍼 구현 (`envs/dexmachina_env.py`)
-- [ ] 데이터 수집 파이프라인 구축
+- [x] 데이터 수집 파이프라인 구축 (`scripts/collect_dexmachina_data.py`)
 - [ ] 모델 확장 (state_dim=410, action_dim=44)
 - [ ] 학습 및 평가
