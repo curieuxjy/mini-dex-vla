@@ -327,6 +327,44 @@ python -m scripts.train_dexmachina \
 
 ---
 
+## 모델 평가
+
+학습된 VLA 모델 평가:
+
+```bash
+python -m scripts.eval_dexmachina \
+    --checkpoint checkpoints/dexmachina_model.pt \
+    --task-name box \
+    --clip-range 30-230 \
+    --episodes 5 \
+    --compare-expert
+```
+
+### 평가 옵션
+
+| 옵션 | 기본값 | 설명 |
+|------|--------|------|
+| `--checkpoint` | (필수) | 학습된 체크포인트 경로 |
+| `--task-name` | box | 평가 태스크 |
+| `--episodes` | 5 | 평가 에피소드 수 |
+| `--compare-expert` | False | Expert action과 비교 |
+| `--save-video` | False | 비디오 저장 |
+| `--no-render` | False | 렌더링 비활성화 |
+
+### 출력 예시
+
+```
+Evaluation Summary
+==================================================
+  Task: box
+  Episodes: 5
+  Mean Reward: 0.0000 +/- 0.0000
+  Mean Action MSE: 0.244146 +/- 0.002286
+==================================================
+```
+
+---
+
 ## TODO
 
 - [x] Genesis scene.build() 이슈 해결
@@ -334,4 +372,4 @@ python -m scripts.train_dexmachina \
 - [x] 데이터 수집 파이프라인 구축 (`scripts/collect_dexmachina_data.py`)
 - [x] 모델 확장 (state_dim=410, action_dim=44)
 - [x] 학습 스크립트 (`scripts/train_dexmachina.py`)
-- [ ] 평가 스크립트
+- [x] 평가 스크립트 (`scripts/eval_dexmachina.py`)
