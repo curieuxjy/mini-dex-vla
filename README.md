@@ -2,6 +2,14 @@
 
 DexMachina 환경을 활용한 양손 Allegro Hand 조작을 위한 mini-VLA 구현 프로젝트.
 
+
+
+<div align="center">
+  <img src="./assets/dexmachina.gif" >
+</div>
+
+
+
 ## 개요
 
 | 항목 | 내용 |
