@@ -145,17 +145,6 @@ def create_env(args, device="cuda:0"):
     env_kwargs = get_all_env_cfg(dex_args, device=device)
     env_kwargs['env_cfg']['use_rl_games'] = False
 
-    # 카메라 설정
-    if not args.no_render:
-        env_kwargs['env_cfg']['camera_kwargs'] = {
-            'front': {
-                'pos': (0.5, 1.5, 1.8),
-                'lookat': (0.0, -0.15, 1.0),
-                'res': (160, 160),
-                'fov': 30,
-            }
-        }
-
     env = BaseEnv(**env_kwargs)
     return env, env_kwargs
 
@@ -189,24 +178,44 @@ def extract_state(env) -> np.ndarray:
 
 def render_image(env, image_size=(160, 160)) -> np.ndarray:
     """카메라에서 이미지 렌더링"""
-    if not hasattr(env, 'cameras') or env.cameras is None:
-        return np.zeros((*image_size, 3), dtype=np.uint8)
+    # DexMachina의 내장 렌더링 사용
+    if hasattr(env, 'render_frame'):
+        try:
+            frame = env.render_frame()
+            if frame is not None:
+                if frame.dtype != np.uint8:
+                    frame = (frame * 255).astype(np.uint8)
+                return frame
+        except Exception as e:
+            pass
 
-    try:
-        camera = env.cameras.get('front', None)
-        if camera is None:
-            return np.zeros((*image_size, 3), dtype=np.uint8)
+    # cameras dict에서 렌더링 시도
+    if hasattr(env, 'cameras') and env.cameras is not None:
+        try:
+            camera = env.cameras.get('front', None)
+            if camera is None and len(env.cameras) > 0:
+                camera = list(env.cameras.values())[0]
 
-        frame, depth, seg, normal = camera.render(segmentation=False)
+            if camera is not None:
+                frame, depth, seg, normal = camera.render(segmentation=False)
+                if frame.dtype != np.uint8:
+                    frame = (frame * 255).astype(np.uint8)
+                return frame
+        except Exception as e:
+            pass
 
-        if frame.dtype != np.uint8:
-            frame = (frame * 255).astype(np.uint8)
+    # scene에서 직접 렌더링 시도
+    if hasattr(env, 'scene') and hasattr(env.scene, 'render'):
+        try:
+            frame = env.scene.render()
+            if frame is not None:
+                if frame.dtype != np.uint8:
+                    frame = (frame * 255).astype(np.uint8)
+                return frame
+        except Exception as e:
+            pass
 
-        return frame
-
-    except Exception as e:
-        print(f"Render error: {e}")
-        return np.zeros((*image_size, 3), dtype=np.uint8)
+    return np.zeros((*image_size, 3), dtype=np.uint8)
 
 
 def get_expert_actions(retarget_data, frame_idx: int, action_dim: int) -> np.ndarray:
@@ -345,8 +354,8 @@ def main():
             else:
                 image = np.zeros((160, 160, 3), dtype=np.uint8)
 
-            # Prepare inputs
-            img_t = torch.from_numpy(image).permute(2, 0, 1).float().unsqueeze(0) / 255.0
+            # Prepare inputs (copy to handle negative strides)
+            img_t = torch.from_numpy(image.copy()).permute(2, 0, 1).float().unsqueeze(0) / 255.0
             state_t = torch.from_numpy(state).float().unsqueeze(0)
 
             img_t = img_t.to(device)
