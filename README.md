@@ -1,113 +1,169 @@
-<div align="center">
+# mini-dex-vla
 
-# mini-VLA
+DexMachina 환경을 활용한 양손 Allegro Hand 조작을 위한 mini-VLA 구현 프로젝트.
 
-</div>
+## 개요
 
-mini-VLA is a minimal, beginner-friendly Vision-Language-Action (VLA) model designed to show how modern robot policies can fuse images, text instructions, and robot states to produce continuous actions.
+| 항목 | 내용 |
+|------|------|
+| **시뮬레이터** | Genesis (GPU 물리 시뮬레이션) |
+| **로봇 손** | Allegro Hand × 2 (양손) |
+| **Action Dim** | 16 DoF × 2 = 32 (양손 finger joints) |
+| **데이터셋** | ARCTIC (인간 양손 조작 비디오) |
+| **물체** | box, laptop, mixer, waffleiron 등 |
 
-> [!IMPORTANT]
-> it is far from being production-ready! Purpose? Education. Optimizations? Yes, I am developing them. Checkout other branches.
+### 기존 mini-VLA와 비교
 
-<div align="center">
-  <img src="./assets/corner2_push.gif" alt="push the object to the goal">
-</div>
+| 항목 | mini-VLA (Meta-World) | mini-dex-vla (DexMachina) |
+|------|----------------------|---------------------------|
+| Hand | 2-finger gripper | Allegro Hand × 2 |
+| Action Dim | 4 | 32 (16 × 2) |
+| State Dim | 39 | 95+ (양손 joints + object) |
+| Task | Push, Pick | Bimanual manipulation |
+| Simulator | MuJoCo | Genesis |
 
-This project intentionally keeps the codebase small (~150 LOC for the core model) so that,
-- beginners can understand the complete VLA training and exec pipeline
-- researchers can rapidly prototype new ideas around this
-- students can learn diffusion-based action generation w/o heavy dependencies
+> 기존 mini-VLA 문서는 [README_MINI_VLA.md](README_MINI_VLA.md) 참조
 
-> [!TIP]
-> I recommend reading the following blogs to get started with mini-VLA implementation.
-> - [Building Vision-Language-Action Model from scratch (Basics)](https://open.substack.com/pub/keivalya/p/building-vision-language-action-from?utm_campaign=post-expanded-share&utm_medium=web)
-> - [Building VLA models from scratch — II (Math, Code, and Intuition)](https://medium.com/@keivalyap/building-vla-models-from-scratch-ii-0180020dbc85)
-> - [Upgrading mini-VLA with CLIP/SigLIP vision encoders](https://medium.com/@keivalyap/mini-vla-with-vision-encoders-f9ba8d8d2988)
+---
 
-This project is not meant to be state-of-the-art instead, it provides a clear, hackable template for understanding VLA design.
+## 설치
 
-The mini-VLA model core is mainly four files: [models/encoders.py](models/encoders.py) contains encoders for images, text and states corresponding to the robot, [models/fusion.py](models/fusion.py) simply combines vision-language-action embeddings using an MLP (yeah, not ideal but simple and it works OKAY), [models/diffusion_head.py](models/diffusion_head.py) generates action using diffusion policy, and [models/vla_diffusion_policy.py](models/vla_diffusion_policy.py) combines everything!
+### 1. Conda 환경 생성
 
-Additionally, I provide scripts such as [scripts/collect_data.py](scripts/collect_data.py) to collect data using an expert policy, [scripts/train.py](scripts/train.py) to train the VLA on the collected data, and [scripts/test.py](scripts/test.py) to test VLA-Diffusion Policy's performance (+ save videos).
-
-
-## Getting started
-
-Create (or activate) a conda environment
-
-```
-conda create --name mini-vla python=3.10
+```bash
+conda create -n mini-vla python=3.10
 conda activate mini-vla
 ```
 
-Clone mini-VLA project
+### 2. PyTorch 설치
 
-```
-git clone https://github.com/keivalya/mini-vla.git
-cd mini-vla
-```
-
-Install dependencies
-
-```
-pip install -r requirements.txt
+```bash
+pip install torch==2.5.1
 ```
 
-## Collect demonstration data
+### 3. Genesis (커스텀 포크) 설치
 
-This gathers trajectories using an expert Meta-World policy and saves them in `.npz` dataset.
-
-```
-python -m scripts.collect_data \
-  --env-name push-v3 \
-  --camera-name corner \
-  --episodes 100 \
-  --max-steps 100 \
-  --output-path data/metaworld_push_bc.npz
+```bash
+cd ~/Documents
+git clone https://github.com/MandiZhao/Genesis.git
+cd Genesis && pip install -e .
+pip install libigl==2.5.1
 ```
 
-## Train your VLA model
+### 4. rl_games (커스텀 포크) 설치
 
-Train a small vision-language diffusion policy on your collected dataset.
-
-```
-python -m scripts.train \
-  --dataset-path data/push_v3.npz \
-  --epochs 50 \
-  --batch-size 64 \
-  --save-path checkpoints/model.pt \
-  --device cpu
+```bash
+cd ~/Documents
+git clone https://github.com/MandiZhao/rl_games.git
+cd rl_games && pip install -e .
 ```
 
-## Test your model in sim
+### 5. 추가 패키지 설치
 
-Run the trained VLA inside the Meta-World MT1 environment.
-
-```
-python -m scripts.test \
-  --checkpoint checkpoints/model.pt \
-  --env-name push-v3 \
-  --episodes 5 \
-  --max-steps 150 \
-  --instruction "push the object to the goal" \
-  --device cpu \
-  --save-video \
-  --video-dir videos
+```bash
+pip install gymnasium ray seaborn wandb trimesh moviepy==1.0.3
 ```
 
-## Inference (coming soon)
+### 6. DexMachina 설치
 
-Planning to,
-- support for multiple tasks (MT10 or M50 something, let's see how much I can scale it)
-- adding larger vision/text backbones (CLIP, SigLIP, ViT) -- w/o losing simplicity
-- arbitrary text-input during inference
+```bash
+cd ~/Documents
+git clone https://github.com/MandiZhao/dexmachina.git
+cd dexmachina && pip install -e .
+```
 
-## 🙌 Contributing
+### 7. 호환성 수정
 
-PRs, improvements, and experiments are welcome! Try adding support for,
+#### NumPy 다운그레이드 (Genesis 호환)
+```bash
+pip install "numpy<2.0"
+```
 
-- MLP-only vision encoder
-- Online evaluation metrics
-- MT10 / MT50 multi-task training
+#### wandb 업그레이드 (NumPy 1.x 호환)
+```bash
+pip install --upgrade wandb
+```
 
-much more! Checkout [mini-vla/issues](https://github.com/keivalya/mini-vla/issues).
+#### torch.load 수정 (PyTorch 2.6+ 호환)
+
+`dexmachina/envs/demo_data.py` 87번째 줄 수정:
+```python
+# 변경 전
+data = torch.load(data_fname)
+
+# 변경 후
+data = torch.load(data_fname, weights_only=False)
+```
+
+---
+
+## 설치 확인
+
+### Genesis 확인
+```bash
+python -c "import genesis as gs; print('Genesis version:', gs.__version__)"
+```
+
+### DexMachina 확인
+```bash
+python -c "import dexmachina; print('DexMachina imported successfully!')"
+```
+
+### 디렉토리 구조
+
+```
+~/Documents/
+├── Genesis/              # Genesis 시뮬레이터
+├── rl_games/             # RL 학습 프레임워크
+├── dexmachina/           # DexMachina 환경
+│   └── dexmachina/
+│       ├── assets/
+│       │   ├── allegro_hand/      # Allegro Hand URDF
+│       │   ├── arctic/            # ARCTIC 물체 assets
+│       │   └── retargeted/        # Retargeted 데모 데이터
+│       ├── envs/                  # 환경 코드
+│       └── rl/                    # RL 학습 코드
+└── mini-vla/             # 이 프로젝트
+```
+
+### 사용 가능한 데이터
+
+| Hand | Subject | Object | 파일 |
+|------|---------|--------|------|
+| allegro_hand | s01 | box | box_use_01_vector_para.pt |
+| allegro_hand | s01 | mixer | mixer_use_01_vector_para.pt |
+| allegro_hand | s01 | waffleiron | waffleiron_use_01_vector_para.pt |
+
+---
+
+## 알려진 이슈
+
+### Genesis scene.build() 에러
+
+```
+ValueError: setting an array element with a sequence.
+The detected shape was (60,) + inhomogeneous part.
+```
+
+- **원인**: `link.inertial_quat` 배열 형태 불일치
+- **상태**: 디버깅 중
+
+---
+
+## 참고 자료
+
+- [DexMachina GitHub](https://github.com/MandiZhao/dexmachina)
+- [DexMachina 문서](https://mandizhao.github.io/dexmachina-docs)
+- [DexMachina 논문](https://arxiv.org/abs/2505.24853)
+- [Genesis GitHub](https://github.com/MandiZhao/Genesis)
+- [ARCTIC 데이터셋](https://arctic.is.tue.mpg.de/)
+
+---
+
+## TODO
+
+- [ ] Genesis scene.build() 이슈 해결
+- [ ] DexMachina 환경 래퍼 구현 (`envs/dexmachina_env.py`)
+- [ ] 데이터 수집 파이프라인 구축
+- [ ] 모델 확장 (state_dim=95, action_dim=32)
+- [ ] 학습 및 평가
