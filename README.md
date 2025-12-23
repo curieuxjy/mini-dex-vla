@@ -26,6 +26,116 @@ DexMachina 환경을 활용한 양손 Allegro Hand 조작을 위한 mini-VLA 구
 
 ---
 
+## 모델 아키텍처
+
+DexMachina VLA는 이미지, 텍스트, 로봇 상태를 융합하여 Diffusion Policy로 action을 생성합니다.
+
+```mermaid
+flowchart TB
+    subgraph Inputs["📥 Inputs"]
+        IMG["🖼️ Image<br/>(B, 3, 160, 160)"]
+        TXT["📝 Text Tokens<br/>(B, T)"]
+        STATE["🤖 Robot State<br/>(B, 410)"]
+    end
+
+    subgraph Encoders["🔧 Encoders"]
+        IMG_ENC["ImageEncoderLarger<br/>CNN 4-layer"]
+        TXT_ENC["TextEncoderTinyGRU<br/>GRU + LayerNorm"]
+        STATE_ENC["BimanualStateEncoderMLP<br/>MLP [512, 256]"]
+    end
+
+    subgraph Tokens["🎯 Tokens (B, d_model)"]
+        IMG_TOK["img_token<br/>(B, 256)"]
+        TXT_TOK["txt_token<br/>(B, 256)"]
+        STATE_TOK["state_token<br/>(B, 256)"]
+    end
+
+    subgraph Fusion["🔀 Fusion"]
+        FUSE["FusionMLP<br/>Concat → MLP → LayerNorm"]
+        CONTEXT["fused_context<br/>(B, 256)"]
+    end
+
+    subgraph Diffusion["🌀 Diffusion Policy Head"]
+        DENOISE["LargerActionDenoiseModel<br/>MLP [512, 512, 256]"]
+        SAMPLE["DDPM Sampling<br/>T=32 steps"]
+    end
+
+    subgraph Output["📤 Output"]
+        ACTION["🎮 Actions<br/>(B, 44)<br/>Left Hand: 22 DoF<br/>Right Hand: 22 DoF"]
+    end
+
+    IMG --> IMG_ENC --> IMG_TOK
+    TXT --> TXT_ENC --> TXT_TOK
+    STATE --> STATE_ENC --> STATE_TOK
+
+    IMG_TOK --> FUSE
+    TXT_TOK --> FUSE
+    STATE_TOK --> FUSE
+    FUSE --> CONTEXT
+
+    CONTEXT --> DENOISE
+    DENOISE --> SAMPLE
+    SAMPLE --> ACTION
+
+    style Inputs fill:#e1f5fe
+    style Encoders fill:#fff3e0
+    style Tokens fill:#f3e5f5
+    style Fusion fill:#e8f5e9
+    style Diffusion fill:#fce4ec
+    style Output fill:#fffde7
+```
+
+### 주요 컴포넌트
+
+| 컴포넌트 | 클래스 | 설명 |
+|---------|--------|------|
+| Image Encoder | `ImageEncoderLarger` | 4-layer CNN, Global Average Pooling |
+| Text Encoder | `TextEncoderTinyGRU` | Embedding + GRU + LayerNorm |
+| State Encoder | `BimanualStateEncoderMLP` | 깊은 MLP (410→512→256→d_model) |
+| Fusion | `FusionMLP` | 3개 토큰 concat → MLP |
+| Diffusion Head | `LargerDiffusionPolicyHead` | DDPM with 512-dim hidden |
+
+### 모델 크기별 설정
+
+```mermaid
+flowchart LR
+    subgraph Small["🔹 Small (~570K params)"]
+        S1["d_model: 128"]
+        S2["diffusion_T: 16"]
+        S3["hidden: 256"]
+    end
+
+    subgraph Base["🔸 Base (~2M params)"]
+        B1["d_model: 256"]
+        B2["diffusion_T: 32"]
+        B3["hidden: 512"]
+    end
+
+    subgraph Large["🔶 Large (~8M params)"]
+        L1["d_model: 512"]
+        L2["diffusion_T: 50"]
+        L3["hidden: 1024"]
+    end
+
+    Small --> Base --> Large
+
+    style Small fill:#e3f2fd
+    style Base fill:#fff8e1
+    style Large fill:#ffebee
+```
+
+### 파일 구조
+
+```
+models/
+├── vla_dexmachina.py      # VLADexMachinaPolicy (메인 모델)
+├── encoders.py            # Image/Text/State 인코더
+├── fusion.py              # FusionMLP
+└── diffusion_head.py      # Diffusion Policy Head
+```
+
+---
+
 ## 설치
 
 ### 1. Conda 환경 생성
