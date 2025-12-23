@@ -277,10 +277,61 @@ python dexmachina/rl/eval_rl_games.py -B 1 --checkpoint $CK -v
 
 ---
 
+## 모델 학습
+
+수집된 데이터로 VLA 모델 학습:
+
+```bash
+python -m scripts.train_dexmachina \
+    --dataset-path data/dexmachina_box.npz \
+    --epochs 100 \
+    --batch-size 64 \
+    --model-size base \
+    --save-path checkpoints/dexmachina_model.pt
+```
+
+### 모델 크기 옵션
+
+| 모델 | d_model | diffusion_T | 파라미터 수 |
+|------|---------|-------------|------------|
+| small | 128 | 16 | ~570K |
+| base | 256 | 32 | ~2M |
+| large | 512 | 50 | ~8M |
+
+### 학습 옵션
+
+| 옵션 | 기본값 | 설명 |
+|------|--------|------|
+| `--epochs` | 100 | 학습 에포크 수 |
+| `--batch-size` | 64 | 배치 크기 |
+| `--lr` | 1e-4 | 학습률 |
+| `--model-size` | base | 모델 크기 (small/base/large) |
+| `--warmup-epochs` | 5 | Warmup 에포크 수 |
+| `--grad-clip` | 1.0 | Gradient clipping |
+| `--resume` | None | 체크포인트에서 재개 |
+
+### 체크포인트 구조
+
+```python
+{
+    "model_state_dict": ...,
+    "vocab": dict,
+    "state_dim": 410,
+    "action_dim": 44,
+    "model_size": "base",
+    "action_stats": {"mean": ..., "std": ...},
+    "epoch": int,
+    "loss": float,
+}
+```
+
+---
+
 ## TODO
 
 - [x] Genesis scene.build() 이슈 해결
 - [x] DexMachina 환경 래퍼 구현 (`envs/dexmachina_env.py`)
 - [x] 데이터 수집 파이프라인 구축 (`scripts/collect_dexmachina_data.py`)
-- [ ] 모델 확장 (state_dim=410, action_dim=44)
-- [ ] 학습 및 평가
+- [x] 모델 확장 (state_dim=410, action_dim=44)
+- [x] 학습 스크립트 (`scripts/train_dexmachina.py`)
+- [ ] 평가 스크립트

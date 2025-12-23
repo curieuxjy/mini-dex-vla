@@ -52,3 +52,66 @@ class StateEncoderMLP(nn.Module):
         x = self.net(s)
         x = self.ln(x)
         return x
+
+
+class BimanualStateEncoderMLP(nn.Module):
+    """
+    양손 조작을 위한 확장된 State Encoder
+
+    DexMachina 환경의 큰 state 차원(410)을 처리하기 위해 설계됨
+    - 더 깊은 네트워크
+    - 더 큰 hidden layers
+    - Dropout으로 overfitting 방지
+    """
+    def __init__(self, state_dim, d_model=256, hidden_dims=None, dropout=0.1):
+        super().__init__()
+
+        if hidden_dims is None:
+            # 기본 hidden dimensions
+            hidden_dims = [512, 256]
+
+        layers = []
+        in_dim = state_dim
+
+        for hidden_dim in hidden_dims:
+            layers.extend([
+                nn.Linear(in_dim, hidden_dim),
+                nn.ReLU(),
+                nn.Dropout(dropout),
+            ])
+            in_dim = hidden_dim
+
+        layers.append(nn.Linear(in_dim, d_model))
+
+        self.net = nn.Sequential(*layers)
+        self.ln = nn.LayerNorm(d_model)
+
+    def forward(self, s):
+        x = self.net(s)
+        x = self.ln(x)
+        return x
+
+
+class ImageEncoderLarger(nn.Module):
+    """
+    더 큰 이미지 encoder (선택적)
+    더 큰 d_model을 위한 확장된 CNN
+    """
+    def __init__(self, d_model=256):
+        super().__init__()
+        self.conv1 = nn.Conv2d(3, 32, kernel_size=5, stride=2, padding=2)
+        self.conv2 = nn.Conv2d(32, 64, kernel_size=3, stride=2, padding=1)
+        self.conv3 = nn.Conv2d(64, 128, kernel_size=3, stride=2, padding=1)
+        self.conv4 = nn.Conv2d(128, 256, kernel_size=3, stride=2, padding=1)
+        self.proj = nn.Linear(256, d_model)
+        self.ln = nn.LayerNorm(d_model)
+
+    def forward(self, x):
+        x = F.relu(self.conv1(x))
+        x = F.relu(self.conv2(x))
+        x = F.relu(self.conv3(x))
+        x = F.relu(self.conv4(x))
+        x = x.mean(dim=[2, 3])  # GAP
+        x = self.proj(x)
+        x = self.ln(x)
+        return x
