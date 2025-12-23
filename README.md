@@ -95,6 +95,32 @@ data = torch.load(data_fname)
 data = torch.load(data_fname, weights_only=False)
 ```
 
+#### Genesis inertial_quat None 처리
+
+`Genesis/genesis/engine/solvers/rigid/rigid_solver_decomp.py` 639-640번째 줄 수정:
+```python
+# 변경 전
+links_inertial_pos=np.array([link.inertial_pos for link in links], dtype=gs.np_float),
+links_inertial_quat=np.array([link.inertial_quat for link in links], dtype=gs.np_float),
+
+# 변경 후
+links_inertial_pos=np.array([link.inertial_pos if link.inertial_pos is not None else [0.0, 0.0, 0.0] for link in links], dtype=gs.np_float),
+links_inertial_quat=np.array([link.inertial_quat if link.inertial_quat is not None else [0.0, 0.0, 0.0, 1.0] for link in links], dtype=gs.np_float),
+```
+
+#### Genesis contact_data 경로 수정
+
+`dexmachina/envs/contacts.py` 179-181번째 줄 수정:
+```python
+# 변경 전
+contact_data = entity_a._solver.collider.contact_data
+n_contacts = entity_a._solver.collider.n_contacts.to_torch(device=device)
+
+# 변경 후
+contact_data = entity_a._solver.collider._collider_state.contact_data
+n_contacts = entity_a._solver.collider._collider_state.n_contacts.to_torch(device=device)
+```
+
 ---
 
 ## 설치 확인
@@ -136,17 +162,26 @@ python -c "import dexmachina; print('DexMachina imported successfully!')"
 
 ---
 
-## 알려진 이슈
+## RL 학습 테스트
 
-### Genesis scene.build() 에러
+설치 후 다음 명령어로 RL 학습을 테스트할 수 있습니다:
 
+```bash
+cd ~/Documents/dexmachina
+python dexmachina/rl/train_rl_games.py \
+  -B 64 \
+  --max_epochs 10 \
+  --clip box-30-230 \
+  --horizon 4 \
+  --hand allegro_hand \
+  --retarget_name para \
+  -exp test_run
 ```
-ValueError: setting an array element with a sequence.
-The detected shape was (60,) + inhomogeneous part.
-```
 
-- **원인**: `link.inertial_quat` 배열 형태 불일치
-- **상태**: 디버깅 중
+출력 예시:
+```
+fps step: 398 fps step and policy inference: 380 fps total: 369 epoch: 1/10
+```
 
 ---
 
@@ -160,10 +195,53 @@ The detected shape was (60,) + inhomogeneous part.
 
 ---
 
+## DexMachina 환경 래퍼
+
+mini-VLA 인터페이스용 래퍼 (`envs/dexmachina_env.py`):
+
+```python
+from envs.dexmachina_env import DexMachinaWrapper
+
+env = DexMachinaWrapper(
+    task_name='box',           # ARCTIC 물체 (box, mixer, waffleiron)
+    hand_type='allegro_hand',  # 로봇 손 타입
+    num_envs=1,
+    clip_range="30-100",       # 프레임 범위
+)
+
+# State/Action 차원
+print(f"State dim: {env.state_dim}")   # 410
+print(f"Action dim: {env.action_dim}") # 44
+
+# Reset
+image, state, info = env.reset()
+
+# Step
+action = np.zeros(env.action_dim, dtype=np.float32)
+image, state, reward, done, info = env.step(action)
+```
+
+---
+
+## 체크포인트 및 평가
+
+RL 학습 체크포인트 위치:
+```
+logs/rl_games/allegro_hand/[RUN_NAME]/nn/allegro_hand.pth
+```
+
+평가 실행:
+```bash
+CK=logs/rl_games/allegro_hand/RUN_NAME/nn/allegro_hand.pth
+python dexmachina/rl/eval_rl_games.py -B 1 --checkpoint $CK -v
+```
+
+---
+
 ## TODO
 
-- [ ] Genesis scene.build() 이슈 해결
-- [ ] DexMachina 환경 래퍼 구현 (`envs/dexmachina_env.py`)
+- [x] Genesis scene.build() 이슈 해결
+- [x] DexMachina 환경 래퍼 구현 (`envs/dexmachina_env.py`)
 - [ ] 데이터 수집 파이프라인 구축
-- [ ] 모델 확장 (state_dim=95, action_dim=32)
+- [ ] 모델 확장 (state_dim=410, action_dim=44)
 - [ ] 학습 및 평가
