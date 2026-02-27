@@ -3,17 +3,30 @@ torchvision
 numpy
 datasets
 
-# simulation
+# simulation (Meta-World)
 gymnasium
 mujoco # or mujoco==3.x
 metaworld
+
+# simulation (DexMachina) - requires separate editable installs:
+#   pip install -e ~/Documents/Genesis      # MandiZhao/Genesis fork (v0.3.3)
+#   pip install -e ~/Documents/rl_games     # MandiZhao/rl_games fork
+#   pip install -e ~/Documents/dexmachina   # MandiZhao/dexmachina
+#   pip install libigl==2.5.1
+#   pip install "numpy<2.0"                 # Genesis compatibility
+# See README.md "설치" section for full instructions.
 
 # data / image utils
 opencv-python
 
 # misc
 tqdm
+matplotlib
+seaborn
 
 # video deps
 imageio
 imageio[ffmpeg]
+
+# wandb (DexMachina RL logging)
+wandb

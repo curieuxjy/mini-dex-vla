@@ -16,17 +16,18 @@ DexMachina 환경을 활용한 양손 Allegro Hand 조작을 위한 mini-VLA 구
 |------|------|
 | **시뮬레이터** | Genesis (GPU 물리 시뮬레이션) |
 | **로봇 손** | Allegro Hand × 2 (양손) |
-| **Action Dim** | 16 DoF × 2 = 32 (양손 finger joints) |
+| **Action Dim** | 44 (hybrid mode: 22 DoF × 2 양손) |
+| **State Dim** | 410 (default) / 510 (with contact force obs) |
 | **데이터셋** | ARCTIC (인간 양손 조작 비디오) |
-| **물체** | box, laptop, mixer, waffleiron 등 |
+| **물체** | box, ketchup, laptop, mixer, notebook, waffleiron (6종) |
 
 ### 기존 mini-VLA와 비교
 
 | 항목 | mini-VLA (Meta-World) | mini-dex-vla (DexMachina) |
 |------|----------------------|---------------------------|
 | Hand | 2-finger gripper | Allegro Hand × 2 |
-| Action Dim | 4 | 32 (16 × 2) |
-| State Dim | 39 | 95+ (양손 joints + object) |
+| Action Dim | 4 | 44 (hybrid: 22 × 2) |
+| State Dim | 39 | 410 (양손 joints + object + fingertip) |
 | Task | Push, Pick | Bimanual manipulation |
 | Simulator | MuJoCo | Genesis |
 
@@ -145,6 +146,18 @@ models/
 ---
 
 ## 설치
+
+### 테스트 환경
+
+| 항목 | 사양 |
+|------|------|
+| **OS** | Ubuntu 24.04 (Linux 6.14) |
+| **GPU** | NVIDIA GeForce RTX 5090 (32GB VRAM) |
+| **Python** | 3.10 |
+| **PyTorch** | 2.10.0+cu128 |
+| **Genesis** | 0.3.3 (MandiZhao fork) |
+| **CUDA** | 12.8 |
+| **Conda** | miniforge3 |
 
 ### 1. Conda 환경 생성
 
@@ -272,11 +285,16 @@ python -c "import dexmachina; print('DexMachina imported successfully!')"
 
 ### 사용 가능한 데이터
 
-| Hand | Subject | Object | 파일 |
-|------|---------|--------|------|
-| allegro_hand | s01 | box | box_use_01_vector_para.pt |
-| allegro_hand | s01 | mixer | mixer_use_01_vector_para.pt |
-| allegro_hand | s01 | waffleiron | waffleiron_use_01_vector_para.pt |
+Retargeted demonstration 데이터 (`dexmachina/assets/retargeted/allegro_hand/s01/`):
+
+| Hand | Subject | Object | Retarget | Contact Retarget | RL 학습 |
+|------|---------|--------|----------|-----------------|---------|
+| allegro_hand | s01 | box | box_use_01_vector_para.pt | box_use_01.npy | **완료** (5000ep, rew 152.7) |
+| allegro_hand | s01 | ketchup | ketchup_use_01_vector_para.pt | - | 미학습 |
+| allegro_hand | s01 | laptop | laptop_use_01_vector_para.pt | - | 미학습 |
+| allegro_hand | s01 | mixer | mixer_use_01_vector_para.pt | mixer_use_01.npy | 미학습 |
+| allegro_hand | s01 | notebook | notebook_use_01_vector_para.pt | - | 미학습 |
+| allegro_hand | s01 | waffleiron | waffleiron_use_01_vector_para.pt | - | 중단 |
 
 ---
 
@@ -296,7 +314,7 @@ python -m scripts.collect_dexmachina_data \
 
 | 옵션 | 기본값 | 설명 |
 |------|--------|------|
-| `--task-name` | box | ARCTIC 물체 (box, mixer, waffleiron) |
+| `--task-name` | box | ARCTIC 물체 (box, ketchup, laptop, mixer, notebook, waffleiron) |
 | `--hand-type` | allegro_hand | 로봇 손 타입 |
 | `--clip-range` | 30-230 | 프레임 범위 |
 | `--episodes` | 10 | 에피소드 수 |
@@ -360,7 +378,7 @@ mini-VLA 인터페이스용 래퍼 (`envs/dexmachina_env.py`):
 from envs.dexmachina_env import DexMachinaWrapper
 
 env = DexMachinaWrapper(
-    task_name='box',           # ARCTIC 물체 (box, mixer, waffleiron)
+    task_name='box',           # ARCTIC 물체 (box, ketchup, laptop, mixer, notebook, waffleiron)
     hand_type='allegro_hand',  # 로봇 손 타입
     num_envs=1,
     clip_range="30-100",       # 프레임 범위
@@ -483,11 +501,4 @@ Evaluation Summary
 
 ---
 
-## TODO
-
-- [x] Genesis scene.build() 이슈 해결
-- [x] DexMachina 환경 래퍼 구현 (`envs/dexmachina_env.py`)
-- [x] 데이터 수집 파이프라인 구축 (`scripts/collect_dexmachina_data.py`)
-- [x] 모델 확장 (state_dim=410, action_dim=44)
-- [x] 학습 스크립트 (`scripts/train_dexmachina.py`)
-- [x] 평가 스크립트 (`scripts/eval_dexmachina.py`)
+> 상세 TODO 및 진행 현황은 [TODO.md](TODO.md) 참조

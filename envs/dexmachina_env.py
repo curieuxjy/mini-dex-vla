@@ -71,7 +71,9 @@ class DexMachinaWrapper:
 
         # 환경 설정 가져오기
         env_kwargs = get_all_env_cfg(args, device=device)
-        env_kwargs['env_cfg']['use_rl_games'] = False
+        env_kwargs['env_cfg']['use_rl_games'] = True
+        # batch_dofs_info=True 필요: num_envs >= 1일 때 set_dofs_kp에 2D tensor 전달
+        env_kwargs['env_cfg']['scene_kwargs']['batch_dofs_info'] = True
 
         # 카메라 설정
         if render:
@@ -93,12 +95,14 @@ class DexMachinaWrapper:
 
     def _compute_dimensions(self):
         """State와 Action 차원 계산"""
-        # Allegro Hand: 16 DoF × 2 (양손) = 32
         self.action_dim = self.env.action_dim
 
-        # State 차원 계산 (observations에서 추출)
+        # use_rl_games=True: get_observations() returns dict with 'policy' key
         sample_obs = self.env.get_observations()
-        if isinstance(sample_obs, dict):
+        if isinstance(sample_obs, dict) and 'policy' in sample_obs:
+            # policy obs shape: (num_envs, state_dim)
+            self.state_dim = sample_obs['policy'].shape[-1]
+        elif isinstance(sample_obs, dict):
             total_dim = 0
             for key, val in sample_obs.items():
                 if isinstance(val, torch.Tensor):
@@ -189,19 +193,17 @@ class DexMachinaWrapper:
         """
         Observation에서 state 벡터 추출
 
-        양손 state 구조:
-        - left_hand_joints: (16,)
-        - right_hand_joints: (16,)
-        - left_fingertip_pos: (4, 3) = 12
-        - right_fingertip_pos: (4, 3) = 12
-        - object_pose: (7,) position + quaternion
+        use_rl_games=True일 때 obs는 dict with 'policy' key: (num_envs, state_dim)
+        첫 번째 환경의 state만 반환
         """
-        if isinstance(obs, dict):
-            # Dict observation을 flatten
+        if isinstance(obs, dict) and 'policy' in obs:
+            # rl_games 모드: policy obs (num_envs, state_dim) -> 첫 번째 env
+            state = obs['policy'][0].cpu().numpy()
+        elif isinstance(obs, dict):
             state_list = []
             for key, val in obs.items():
                 if isinstance(val, torch.Tensor):
-                    state_list.append(val.cpu().numpy().flatten())
+                    state_list.append(val[0].cpu().numpy().flatten() if val.dim() > 1 else val.cpu().numpy().flatten())
                 elif isinstance(val, np.ndarray):
                     state_list.append(val.flatten())
             state = np.concatenate(state_list)
