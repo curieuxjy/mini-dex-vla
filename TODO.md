@@ -182,9 +182,17 @@ VLADiffusionPolicy(vocab_size, state_dim=39, action_dim=4, d_model=128)
 VLADexMachinaPolicy(vocab_size, state_dim=410, action_dim=44, d_model=256)
 ```
 
-### 4.4 Action Normalization
-- [ ] Joint limit 기반 normalization 추가
-- [ ] Allegro Hand joint limits: 각 joint별 min/max 값
+### 4.4 Action Normalization (완료)
+- [x] Joint limit 기반 normalization 추가 (`utils/action_normalizer.py`)
+  - `AllegroActionNormalizer`: raw joint position <-> [-1, 1] 매핑
+  - Wrist (6 DOF): prismatic [-5, 5], revolute [-6.2, 6.2]
+  - Finger (16 DOF): URDF joint limits (각 joint별 상이)
+  - Bimanual 44 DOF = left 22 + right 22
+- [x] Allegro Hand joint limits: URDF에서 추출하여 하드코딩
+- [x] `--action-norm-mode` 옵션 추가 (`joint_limits` / `statistical` / `none`)
+  - `train_dexmachina.py`: 학습 시 normalization 모드 선택 (기본: joint_limits)
+  - `eval_dexmachina.py`: checkpoint에 저장된 모드에 따라 자동 denormalize
+  - `collect_dexmachina_data.py`: `--normalize-actions`로 수집 시 정규화 옵션
 
 ---
 

@@ -20,6 +20,7 @@ from torch.utils.data import Dataset, DataLoader
 from torch.optim.lr_scheduler import CosineAnnealingLR
 
 from models.vla_dexmachina import VLADexMachinaPolicy, create_dexmachina_model
+from utils.action_normalizer import AllegroActionNormalizer
 
 
 class DexMachinaDataset(Dataset):
@@ -27,8 +28,14 @@ class DexMachinaDataset(Dataset):
     DexMachina 데이터셋 로더
 
     수집된 npz 파일에서 데이터를 로드
+
+    Action normalization 방식:
+    - "joint_limits": Joint limit 기반 [-1, 1] 정규화 (권장)
+    - "statistical": Mean/std 기반 zero-mean unit-variance 정규화
+    - "none": 정규화 없음
     """
-    def __init__(self, path, resize_to=64, normalize_actions=True):
+    def __init__(self, path, resize_to=64, normalize_actions=True,
+                 action_norm_mode="joint_limits"):
         data = np.load(path, allow_pickle=True)
         self.images = data["images"]             # (N, H, W, 3)
         self.states = data["states"]             # (N, state_dim)
@@ -44,14 +51,34 @@ class DexMachinaDataset(Dataset):
 
         self.resize_to = resize_to
         self.normalize_actions = normalize_actions
+        self.action_norm_mode = action_norm_mode if normalize_actions else "none"
 
-        # Action normalization (optional)
-        if normalize_actions:
+        # Action normalization 설정
+        action_dim = self.actions.shape[1]
+        self.joint_normalizer = None
+
+        if self.action_norm_mode == "joint_limits" and action_dim in (22, 44):
+            self.joint_normalizer = AllegroActionNormalizer(action_dim=action_dim)
+            # 전체 데이터를 joint limit 기반으로 정규화
+            self.actions_normalized = self.joint_normalizer.normalize(self.actions)
+            self.action_mean = np.zeros(action_dim, dtype=np.float32)
+            self.action_std = np.ones(action_dim, dtype=np.float32)
+            print(f"  Action norm: joint_limits ([-1, 1])")
+        elif self.action_norm_mode == "statistical" or (
+                self.action_norm_mode == "joint_limits" and action_dim not in (22, 44)):
+            if self.action_norm_mode == "joint_limits":
+                print(f"  Warning: joint_limits not available for action_dim={action_dim}, "
+                      f"falling back to statistical")
+                self.action_norm_mode = "statistical"
             self.action_mean = self.actions.mean(axis=0)
             self.action_std = self.actions.std(axis=0) + 1e-8
+            self.actions_normalized = (self.actions - self.action_mean) / self.action_std
+            print(f"  Action norm: statistical (zero-mean, unit-variance)")
         else:
-            self.action_mean = np.zeros(self.actions.shape[1])
-            self.action_std = np.ones(self.actions.shape[1])
+            self.action_mean = np.zeros(action_dim, dtype=np.float32)
+            self.action_std = np.ones(action_dim, dtype=np.float32)
+            self.actions_normalized = self.actions.copy()
+            print(f"  Action norm: none")
 
         try:
             import cv2
@@ -80,22 +107,22 @@ class DexMachinaDataset(Dataset):
 
         state = torch.from_numpy(self.states[idx]).float()
 
-        # Normalize actions
-        action = self.actions[idx]
-        if self.normalize_actions:
-            action = (action - self.action_mean) / self.action_std
-        action = torch.from_numpy(action.astype(np.float32))
+        action = torch.from_numpy(self.actions_normalized[idx].astype(np.float32))
 
         text_ids = torch.from_numpy(self.text_ids[idx]).long()
 
         return img, state, action, text_ids
 
     def get_action_stats(self):
-        """Get action normalization statistics"""
-        return {
+        """Get action normalization statistics for checkpoint"""
+        stats = {
             "mean": self.action_mean,
             "std": self.action_std,
+            "norm_mode": self.action_norm_mode,
         }
+        if self.joint_normalizer is not None:
+            stats["joint_limits"] = self.joint_normalizer.get_limits()
+        return stats
 
 
 def parse_args():
@@ -107,7 +134,11 @@ def parse_args():
     parser.add_argument("--resize-to", type=int, default=64,
                         help="Resize images to this size")
     parser.add_argument("--normalize-actions", action="store_true", default=True,
-                        help="Normalize actions to zero mean and unit variance")
+                        help="Normalize actions (default: True)")
+    parser.add_argument("--action-norm-mode", type=str, default="joint_limits",
+                        choices=["joint_limits", "statistical", "none"],
+                        help="Action normalization: joint_limits ([-1,1]), "
+                             "statistical (zero-mean), or none")
 
     # Model
     parser.add_argument("--model-size", type=str, default="base",
@@ -173,6 +204,7 @@ def main():
         args.dataset_path,
         resize_to=args.resize_to,
         normalize_actions=args.normalize_actions,
+        action_norm_mode=args.action_norm_mode,
     )
 
     vocab_size = max(dataset.vocab.values()) + 1

@@ -31,6 +31,7 @@ from dexmachina.envs.demo_data import load_genesis_retarget_data
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from models.vla_dexmachina import VLADexMachinaPolicy, create_dexmachina_model
 from utils.tokenizer import SimpleTokenizer
+from utils.action_normalizer import AllegroActionNormalizer
 
 
 def parse_args():
@@ -262,10 +263,16 @@ def denormalize_action(action: np.ndarray, action_stats: dict) -> np.ndarray:
     if action_stats is None:
         return action
 
-    mean = action_stats["mean"]
-    std = action_stats["std"]
+    norm_mode = action_stats.get("norm_mode", "statistical")
 
-    return action * std + mean
+    if norm_mode == "joint_limits" and "joint_limits" in action_stats:
+        normalizer = AllegroActionNormalizer.from_limits(action_stats["joint_limits"])
+        return normalizer.denormalize(action)
+    else:
+        # statistical fallback
+        mean = action_stats["mean"]
+        std = action_stats["std"]
+        return action * std + mean
 
 
 def main():

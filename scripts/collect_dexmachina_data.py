@@ -31,6 +31,7 @@ from dexmachina.envs.demo_data import load_genesis_retarget_data
 # mini-VLA 경로
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from utils.tokenizer import SimpleTokenizer
+from utils.action_normalizer import AllegroActionNormalizer
 
 
 def parse_args():
@@ -62,6 +63,8 @@ def parse_args():
     parser.add_argument("--action-mode", type=str, default="kinematic",
                         choices=["kinematic", "residual"],
                         help="Action mode: kinematic (replay demo) or residual")
+    parser.add_argument("--normalize-actions", action="store_true",
+                        help="Pre-normalize actions with joint limits before saving")
     return parser.parse_args()
 
 
@@ -346,6 +349,16 @@ def main():
     for i, seq in enumerate(text_ids_list):
         text_ids[i, :len(seq)] = np.array(seq, dtype=np.int64)
 
+    # Joint limit normalization (optional, applied before saving)
+    action_dim = actions.shape[1]
+    if args.normalize_actions and action_dim in (22, 44):
+        normalizer = AllegroActionNormalizer(action_dim=action_dim)
+        print(f"\nNormalizing actions with joint limits -> [-1, 1]")
+        actions_raw_range = (actions.min(axis=0), actions.max(axis=0))
+        actions = normalizer.normalize(actions)
+        print(f"  Raw range:  [{actions_raw_range[0].min():.3f}, {actions_raw_range[1].max():.3f}]")
+        print(f"  Norm range: [{actions.min():.3f}, {actions.max():.3f}]")
+
     # 추가 메타데이터
     metadata = {
         'task_name': args.task_name,
@@ -354,9 +367,10 @@ def main():
         'subject': args.subject,
         'instruction': instruction,
         'state_dim': states.shape[1],
-        'action_dim': actions.shape[1],
+        'action_dim': action_dim,
         'num_episodes': args.episodes,
         'episode_length': episode_length,
+        'actions_normalized': args.normalize_actions,
     }
 
     # 저장
